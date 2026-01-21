@@ -5,45 +5,10 @@
   <title>AI Master Dashboard</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    /* 简单居中样式，保留原样式 */
-    body {
-      font-family: sans-serif;
-      background-color: #f0f2f5;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-    }
-    #auth, #dashboard {
-      width: 90%;
-      max-width: 600px;
-      padding: 20px;
-      border-radius: 10px;
-      background-color: #fff;
-      box-shadow: 0 0 15px rgba(0,0,0,0.2);
-      margin-top: 20px;
-      text-align: center;
-    }
-    input {
-      padding: 10px;
-      width: 70%;
-      margin-bottom: 10px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-      text-align: center;
-    }
-    button {
-      padding: 10px 20px;
-      border-radius: 5px;
-      border: none;
-      background-color: #4caf50;
-      color: #fff;
-      cursor: pointer;
-    }
-    button:hover {
-      background-color: #45a049;
-    }
+    body { font-family: sans-serif; background: #f0f2f5; display:flex; align-items:center; justify-content:center; height:100vh; }
+    #auth, #dashboard { padding: 20px; background:#fff; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.2); text-align:center; width:90%; max-width:600px; }
+    input { padding:10px; width:70%; margin-bottom:10px; }
+    button { padding:10px 20px; background:#4caf50; color:#fff; border:none; border-radius:5px; cursor:pointer; }
   </style>
 </head>
 <body>
@@ -56,28 +21,26 @@
 
 <div id="dashboard" style="display:none;">
   <h1>🧠 AI 智能体中央监控</h1>
-
   <div class="card">
     <h3>📊 总览</h3>
     <p id="totalCalls">总调用：--</p>
     <p id="agents">活跃智能体：--</p>
     <p id="errors">错误率：--</p>
   </div>
-
   <div class="card">
     <h3>📈 智能体排行</h3>
     <ul id="agentList"></ul>
   </div>
 </div>
 
-<script src="dashboard.js"></script>
 <script>
+  // 全局密码变量
   const MASTER_PASSWORD = "TSAI-2026-CORE";
 
   function login() {
     const pw = document.getElementById("password").value;
-    if(pw === MASTER_PASSWORD){
-      // 密码正确 → 显示 dashboard，隐藏密码框
+    if (pw === MASTER_PASSWORD) {
+      // 显示 dashboard
       document.getElementById("auth").style.display = "none";
       document.getElementById("dashboard").style.display = "block";
     } else {
@@ -90,5 +53,6 @@
     if(e.key === "Enter") login();
   });
 </script>
+<script src="dashboard.js"></script>
 </body>
 </html>
