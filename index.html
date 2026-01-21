@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <title>AI Master Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="auth">
+  <h2>🔐 中央监控看板</h2>
+  <input type="password" id="password" placeholder="输入主控密码" />
+  <button onclick="login()">进入</button>
+</div>
+
+<div id="dashboard" style="display:none;">
+  <h1>🧠 AI 智能体中央监控</h1>
+
+  <div class="card">
+    <h3>📊 总览</h3>
+    <p id="totalCalls">总调用：--</p>
+    <p id="agents">活跃智能体：--</p>
+    <p id="errors">错误率：--</p>
+  </div>
+
+  <div class="card">
+    <h3>📈 智能体排行</h3>
+    <ul id="agentList"></ul>
+  </div>
+</div>
+
+<script src="dashboard.js"></script>
+</body>
+</html>
