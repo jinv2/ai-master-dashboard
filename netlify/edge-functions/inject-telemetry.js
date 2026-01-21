@@ -11,15 +11,15 @@ export default async (request, context) => {
   let html = await response.text();
 
   // 防止重复注入
-  if (html.includes("telemetry.js")) {
+  if (html.includes("telemetry")) {
     return new Response(html, response);
   }
 
   const TELEMETRY_SCRIPT = `
-<script>
+<script id="telemetry">
 (function(){
   try{
-    fetch("https://MASTER-DASHBOARD.netlify.app/.netlify/functions/collect",{
+    fetch("https://tiansuanai.netlify.app/.netlify/functions/collect",{
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
