@@ -5,24 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>天算AI · 商业情报中枢</title>
     
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.staticfile.net/tailwindcss/3.3.3/tailwind.min.js"></script>
     
-    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.3.4/vue.global.min.js"></script>
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.staticfile.net/vue/3.3.4/vue.global.prod.min.js"></script>
+    <script src="https://npm.elemecdn.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 
     <style>
         body { background-color: #0f172a; color: #e2e8f0; font-family: sans-serif; }
         .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        /* 删除了 v-cloak，防止黑屏 */
+        /* 隐藏未编译的 {{ }} 符号，防止乱码吓人 */
+        [v-cloak] { display: none; }
     </style>
 </head>
 <body>
     <div id="debug-console" style="display:none; position:fixed; bottom:0; left:0; right:0; background:#7f1d1d; color:#fff; padding:10px; font-family:monospace; font-size:12px; z-index:9999;">
-        <p>🔴 <strong>系统自检日志 (截图发给工程师):</strong></p>
+        <p>🔴 <strong>系统自检日志:</strong></p>
         <div id="log-content"></div>
     </div>
 
-    <div id="app" class="min-h-screen p-6">
+    <div id="app" class="min-h-screen p-6" v-cloak>
         <div v-if="!authorized" class="flex items-center justify-center h-screen">
             <div class="glass p-8 rounded-xl max-w-md w-full text-center">
                 <h1 class="text-2xl font-bold mb-4 text-cyan-400">SKYCALC DATA CORE</h1>
@@ -91,12 +92,13 @@
         const MY_PASSWORD = 'admin'; 
 
         // 检查脚本是否加载
-        if (typeof Vue === 'undefined') logError("严重错误：Vue.js 加载失败，请检查网络或挂梯子。");
-        if (typeof supabase === 'undefined') logError("警告：Supabase 库未加载，可能无法读取数据。");
+        if (typeof Vue === 'undefined') logError("严重错误：Vue.js 加载失败，您的网络无法连接 Staticfile CDN。");
+        if (typeof supabase === 'undefined') logError("警告：Supabase 库未加载，您的网络无法连接 Eleme CDN。");
 
-        const { createApp } = Vue || {}; // 防止报错
+        const { createApp } = Vue || {}; 
         let sbClient = null;
 
+        // 初始化客户端
         if (window.supabase) {
             try {
                 sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -126,7 +128,7 @@
                     async login() { 
                         this.isChecking = true;
                         if (!sbClient) { 
-                            alert('无法连接数据库，请看底部红色报错日志'); 
+                            alert('无法连接数据库，基础库加载失败'); 
                             logError("点击登录时 Supabase 对象不存在");
                             this.isChecking = false;
                             return; 
@@ -137,7 +139,12 @@
                             const { data, error } = await sbClient.from('page_views').select('count', { count: 'exact', head: true });
                             if (error) {
                                 logError("数据库连接测试失败: " + error.message);
-                                alert("连接失败，请检查网络或VPN");
+                                // 这里增加一种可能：API本身被墙
+                                if(error.message.includes('Failed to fetch')) {
+                                     alert("严重网络错误：Supabase API 被您的网络拦截。请开启 VPN。");
+                                } else {
+                                     alert("连接失败: " + error.message);
+                                }
                                 this.isChecking = false;
                             } else {
                                 this.authorized = true; 
