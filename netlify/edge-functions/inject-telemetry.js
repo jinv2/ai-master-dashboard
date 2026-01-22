@@ -1,41 +1,37 @@
-export default async (request, context) => {
-  const response = await context.next();
+(function() {
+    // ✅ 核心配置 (已填入你的 Key)
+    const CONFIG = {
+        url: 'https://sfxpbtqxtshtywbzahlo.supabase.co',
+        key: 'sb_publishable_mMtaZpZiaW9FGK3XMkelug_piElFnC8'
+    };
 
-  const contentType = response.headers.get("content-type") || "";
+    function logView() {
+        // 防止本地测试时刷数据
+        if (window.location.hostname === 'localhost') return;
 
-  // 只处理 HTML
-  if (!contentType.includes("text/html")) {
-    return response;
-  }
+        const payload = {
+            site_name: document.title, // 自动抓取网页标题
+            url: window.location.href, // 抓取链接
+            referrer: document.referrer // 抓取来源
+        };
 
-  let html = await response.text();
+        // 发送数据到 Supabase
+        fetch(`${CONFIG.url}/rest/v1/page_views`, {
+            method: 'POST',
+            headers: {
+                'apikey': CONFIG.key,
+                'Authorization': `Bearer ${CONFIG.key}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify(payload)
+        }).catch(err => console.warn('SkyCalc Telemetry Error:', err));
+    }
 
-  // 防止重复注入
-  if (html.includes("telemetry")) {
-    return new Response(html, response);
-  }
-
-  const TELEMETRY_SCRIPT = `
-<script id="telemetry">
-(function(){
-  try{
-    fetch("https://tiansuanai.netlify.app/.netlify/functions/collect",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({
-        agent_id: location.hostname,
-        path: location.pathname,
-        event: "pageview",
-        ts: Date.now()
-      })
-    });
-  }catch(e){}
+    // 确保页面加载完成后再发送
+    if (document.readyState === 'complete') {
+        logView();
+    } else {
+        window.addEventListener('load', logView);
+    }
 })();
-</script>
-`;
-
-  // 注入到 </head> 前
-  html = html.replace("</head>", `${TELEMETRY_SCRIPT}</head>`);
-
-  return new Response(html, response);
-};
