@@ -4,26 +4,33 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>天算AI · 商业情报中枢</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://cdn.bootcdn.net/ajax/libs/vue/3.3.4/vue.global.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+
     <style>
         body { background-color: #0f172a; color: #e2e8f0; font-family: sans-serif; }
         .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        /* 加一个加载中的遮罩 */
-        [v-cloak] { display: none; }
+        /* 删除了 v-cloak，防止黑屏 */
     </style>
 </head>
 <body>
-    <div id="app" class="min-h-screen p-6" v-cloak>
+    <div id="debug-console" style="display:none; position:fixed; bottom:0; left:0; right:0; background:#7f1d1d; color:#fff; padding:10px; font-family:monospace; font-size:12px; z-index:9999;">
+        <p>🔴 <strong>系统自检日志 (截图发给工程师):</strong></p>
+        <div id="log-content"></div>
+    </div>
+
+    <div id="app" class="min-h-screen p-6">
         <div v-if="!authorized" class="flex items-center justify-center h-screen">
             <div class="glass p-8 rounded-xl max-w-md w-full text-center">
                 <h1 class="text-2xl font-bold mb-4 text-cyan-400">SKYCALC DATA CORE</h1>
                 <p class="text-xs text-slate-500 mb-4">身份验证系统</p>
                 <input type="password" v-model="password" @keyup.enter="login" placeholder="输入访问密钥" class="w-full p-3 rounded bg-slate-800 border border-slate-600 mb-4 text-white text-center">
-                <button @click="login" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded">验证身份</button>
-                <p id="error-msg" class="text-red-500 text-xs mt-4 hidden">系统错误：脚本未能加载，请按 F12 查看控制台</p>
+                <button @click="login" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded">
+                    {{ isChecking ? '正在连接数据库...' : '验证身份' }}
+                </button>
             </div>
         </div>
 
@@ -37,6 +44,7 @@
             </header>
 
             <div v-if="loading" class="text-center text-cyan-400 py-10">正在同步卫星数据...</div>
+            <div v-else-if="errorMsg" class="text-center text-red-400 py-10">{{ errorMsg }}</div>
 
             <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div v-for="(stats, name) in siteStats" :key="name" class="glass rounded-xl p-6 hover:border-cyan-500 transition relative">
@@ -59,7 +67,6 @@
 
             <div class="mt-12 p-6 bg-slate-900 rounded-xl border border-dashed border-slate-700">
                 <h3 class="font-bold text-white mb-2">📡 部署指令</h3>
-                <p class="text-sm text-slate-400 mb-2">在任何子项目的 index.html 中引入此脚本即可：</p>
                 <code class="block bg-black p-3 rounded text-green-400 text-xs break-all">
                     &lt;script src="https://ai-master-dashboard.netlify.app/inject-telemetry.js"&gt;&lt;/script&gt;
                 </code>
@@ -68,64 +75,94 @@
     </div>
 
     <script>
-        setTimeout(function(){
-            if (typeof Vue === 'undefined' || typeof window.supabase === 'undefined') {
-                document.getElementById('error-msg').style.display = 'block';
-                document.getElementById('error-msg').innerText = "检测到网络问题：核心脚本加载超时，请检查网络或挂梯子。";
-            }
-        }, 3000);
-    </script>
+        // === 🛡️ 错误捕获系统 ===
+        function logError(msg) {
+            document.getElementById('debug-console').style.display = 'block';
+            document.getElementById('log-content').innerHTML += `<div>${msg}</div>`;
+        }
+        window.onerror = function(msg, url, line) {
+            logError(`JS Error: ${msg} (Line ${line})`);
+        };
+        // =======================
 
-    <script>
         // ✅ 核心配置
         const SUPABASE_URL = 'https://sfxpbtqxtshtywbzahlo.supabase.co'; 
         const SUPABASE_KEY = 'sb_publishable_mMtaZpZiaW9FGK3XMkelug_piElFnC8'; 
         const MY_PASSWORD = 'admin'; 
 
-        const { createApp } = Vue
-        // 防止 supabase 加载失败导致报错
-        let supabase = null;
+        // 检查脚本是否加载
+        if (typeof Vue === 'undefined') logError("严重错误：Vue.js 加载失败，请检查网络或挂梯子。");
+        if (typeof supabase === 'undefined') logError("警告：Supabase 库未加载，可能无法读取数据。");
+
+        const { createApp } = Vue || {}; // 防止报错
+        let sbClient = null;
+
         if (window.supabase) {
-            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            try {
+                sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            } catch (e) {
+                logError("Supabase 初始化失败: " + e.message);
+            }
         }
 
-        createApp({
-            data() { return { authorized: false, password: '', loading: false, rawData: [] } },
-            computed: {
-                totalViews() { return this.rawData.length; },
-                siteStats() {
-                    const stats = {};
-                    this.rawData.forEach(r => {
-                        const name = r.site_name || 'Unknown';
-                        if (!stats[name]) stats[name] = { count: 0, lastActive: null };
-                        stats[name].count++;
-                        const t = new Date(r.created_at);
-                        if (!stats[name].lastActive || t > stats[name].lastActive) stats[name].lastActive = t;
-                    });
-                    return Object.fromEntries(Object.entries(stats).sort(([,a],[,b]) => b.count - a.count));
+        if (createApp) {
+            createApp({
+                data() { return { authorized: false, password: '', loading: false, isChecking: false, errorMsg: '', rawData: [] } },
+                computed: {
+                    totalViews() { return this.rawData.length; },
+                    siteStats() {
+                        const stats = {};
+                        this.rawData.forEach(r => {
+                            const name = r.site_name || 'Unknown';
+                            if (!stats[name]) stats[name] = { count: 0, lastActive: null };
+                            stats[name].count++;
+                            const t = new Date(r.created_at);
+                            if (!stats[name].lastActive || t > stats[name].lastActive) stats[name].lastActive = t;
+                        });
+                        return Object.fromEntries(Object.entries(stats).sort(([,a],[,b]) => b.count - a.count));
+                    }
+                },
+                methods: {
+                    async login() { 
+                        this.isChecking = true;
+                        if (!sbClient) { 
+                            alert('无法连接数据库，请看底部红色报错日志'); 
+                            logError("点击登录时 Supabase 对象不存在");
+                            this.isChecking = false;
+                            return; 
+                        }
+                        
+                        if (this.password === MY_PASSWORD) { 
+                            // 尝试先请求一次，确保网络通畅
+                            const { data, error } = await sbClient.from('page_views').select('count', { count: 'exact', head: true });
+                            if (error) {
+                                logError("数据库连接测试失败: " + error.message);
+                                alert("连接失败，请检查网络或VPN");
+                                this.isChecking = false;
+                            } else {
+                                this.authorized = true; 
+                                this.fetchData(); 
+                            }
+                        } else { 
+                            alert('密码错误'); 
+                            this.isChecking = false;
+                        } 
+                    },
+                    async fetchData() {
+                        this.loading = true;
+                        const { data, error } = await sbClient.from('page_views').select('*').order('created_at', { ascending: false }).limit(5000);
+                        if(error) { 
+                            this.errorMsg = "数据读取失败: " + error.message;
+                            logError(this.errorMsg);
+                        }
+                        this.rawData = data || [];
+                        this.loading = false;
+                    },
+                    getPercentage(c) { return this.totalViews ? ((c/this.totalViews)*100).toFixed(1) : 0; },
+                    formatTime(d) { return d ? new Date(d).toLocaleString() : '-'; }
                 }
-            },
-            methods: {
-                login() { 
-                    if (!supabase) { alert('Supabase 连接失败，请检查网络'); return; }
-                    if (this.password === MY_PASSWORD) { 
-                        this.authorized = true; 
-                        this.fetchData(); 
-                    } else { 
-                        alert('密码错误'); 
-                    } 
-                },
-                async fetchData() {
-                    this.loading = true;
-                    const { data, error } = await supabase.from('page_views').select('*').order('created_at', { ascending: false }).limit(5000);
-                    if(error) { console.error(error); alert("连接 Supabase 失败: " + error.message); }
-                    this.rawData = data || [];
-                    this.loading = false;
-                },
-                getPercentage(c) { return this.totalViews ? ((c/this.totalViews)*100).toFixed(1) : 0; },
-                formatTime(d) { return d ? new Date(d).toLocaleString() : '-'; }
-            }
-        }).mount('#app')
+            }).mount('#app')
+        }
     </script>
 </body>
 </html>
