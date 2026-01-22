@@ -4,171 +4,160 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>天算AI · 商业情报中枢</title>
-    
-    <script src="https://cdn.staticfile.net/tailwindcss/3.3.3/tailwind.min.js"></script>
-    
-    <script src="https://cdn.staticfile.net/vue/3.3.4/vue.global.prod.min.js"></script>
-    <script src="https://npm.elemecdn.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #0f172a; color: #e2e8f0; font-family: sans-serif; }
-        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        /* 隐藏未编译的 {{ }} 符号，防止乱码吓人 */
-        [v-cloak] { display: none; }
+        /* --- 兜底样式 (防止 CSS 加载失败导致丑陋) --- */
+        body { background-color: #0f172a; color: #e2e8f0; font-family: sans-serif; margin: 0; }
+        .p-6 { padding: 24px; }
+        .glass { background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; }
+        .text-center { text-align: center; }
+        input, button { font-size: 16px; padding: 12px; border-radius: 6px; margin-bottom: 10px; width: 100%; box-sizing: border-box; }
+        input { background: #1e293b; border: 1px solid #475569; color: white; }
+        button { background: #0891b2; color: white; border: none; cursor: pointer; font-weight: bold; }
+        button:hover { background: #06b6d4; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+        .hidden { display: none !important; }
+        .bar-container { background: #1e293b; height: 6px; border-radius: 3px; margin-top: 15px; overflow: hidden; }
+        .bar-fill { background: #06b6d4; height: 100%; }
+        /* ------------------------------------------- */
     </style>
 </head>
 <body>
-    <div id="debug-console" style="display:none; position:fixed; bottom:0; left:0; right:0; background:#7f1d1d; color:#fff; padding:10px; font-family:monospace; font-size:12px; z-index:9999;">
-        <p>🔴 <strong>系统自检日志:</strong></p>
-        <div id="log-content"></div>
+
+    <div id="login-view" class="flex items-center justify-center h-screen" style="height: 100vh; display: flex; align-items: center; justify-content: center;">
+        <div class="glass p-6" style="max-width: 400px; width: 100%;">
+            <h1 class="text-2xl font-bold mb-4 text-cyan-400 text-center" style="color: #22d3ee; margin-bottom: 20px;">SKYCALC CORE</h1>
+            <p class="text-xs text-slate-500 mb-4 text-center" style="color: #94a3b8;">零依赖原生架构 v1.0</p>
+            <input type="password" id="password-input" placeholder="输入访问密钥" onkeyup="if(event.key==='Enter') tryLogin()">
+            <button id="login-btn" onclick="tryLogin()">验证身份</button>
+            <p id="login-msg" style="color: #f87171; font-size: 12px; margin-top: 10px; display: none;"></p>
+        </div>
     </div>
 
-    <div id="app" class="min-h-screen p-6" v-cloak>
-        <div v-if="!authorized" class="flex items-center justify-center h-screen">
-            <div class="glass p-8 rounded-xl max-w-md w-full text-center">
-                <h1 class="text-2xl font-bold mb-4 text-cyan-400">SKYCALC DATA CORE</h1>
-                <p class="text-xs text-slate-500 mb-4">身份验证系统</p>
-                <input type="password" v-model="password" @keyup.enter="login" placeholder="输入访问密钥" class="w-full p-3 rounded bg-slate-800 border border-slate-600 mb-4 text-white text-center">
-                <button @click="login" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded">
-                    {{ isChecking ? '正在连接数据库...' : '验证身份' }}
-                </button>
+    <div id="dashboard-view" class="max-w-6xl mx-auto hidden" style="max-width: 1200px; margin: 0 auto;">
+        <header class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4" style="display: flex; justify-content: space-between; border-bottom: 1px solid #334155; margin-bottom: 30px; padding-bottom: 20px;">
+            <h1 class="text-3xl font-bold text-white">天算AI <span class="text-cyan-400" style="color: #22d3ee;">全局监控</span></h1>
+            <div class="text-right">
+                <div id="total-views" class="text-2xl font-mono text-cyan-400" style="font-family: monospace; font-size: 24px; color: #22d3ee;">0</div>
+                <div class="text-xs text-slate-500" style="color: #94a3b8; font-size: 12px;">总交互次数</div>
             </div>
-        </div>
+        </header>
 
-        <div v-else class="max-w-6xl mx-auto">
-            <header class="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
-                <h1 class="text-3xl font-bold text-white">天算AI <span class="text-cyan-400">全局监控</span></h1>
-                <div class="text-right">
-                    <div class="text-2xl font-mono text-cyan-400">{{ totalViews }}</div>
-                    <div class="text-xs text-slate-500">总交互次数</div>
-                </div>
-            </header>
+        <div id="loading-text" class="text-center text-cyan-400 py-10" style="color: #22d3ee; text-align: center; padding: 40px;">正在建立原生连接...</div>
 
-            <div v-if="loading" class="text-center text-cyan-400 py-10">正在同步卫星数据...</div>
-            <div v-else-if="errorMsg" class="text-center text-red-400 py-10">{{ errorMsg }}</div>
+        <div id="stats-grid" class="grid"></div>
 
-            <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div v-for="(stats, name) in siteStats" :key="name" class="glass rounded-xl p-6 hover:border-cyan-500 transition relative">
-                    <h3 class="font-bold text-xl text-white mb-2 truncate">{{ name }}</h3>
-                    <div class="flex justify-between items-end">
-                        <div>
-                            <div class="text-xs text-slate-400">使用次数</div>
-                            <div class="text-2xl font-mono text-white">{{ stats.count }}</div>
-                        </div>
-                        <div class="text-right">
-                            <div class="text-xs text-slate-400">最后活跃</div>
-                            <div class="text-xs text-cyan-400">{{ formatTime(stats.lastActive) }}</div>
-                        </div>
-                    </div>
-                    <div class="w-full bg-slate-800 h-1 mt-4 rounded overflow-hidden">
-                        <div class="bg-cyan-500 h-full" :style="{ width: getPercentage(stats.count) + '%' }"></div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="mt-12 p-6 bg-slate-900 rounded-xl border border-dashed border-slate-700">
-                <h3 class="font-bold text-white mb-2">📡 部署指令</h3>
-                <code class="block bg-black p-3 rounded text-green-400 text-xs break-all">
-                    &lt;script src="https://ai-master-dashboard.netlify.app/inject-telemetry.js"&gt;&lt;/script&gt;
-                </code>
-            </div>
+        <div class="glass p-6 mt-12" style="margin-top: 50px; background: #0f172a; border: 1px dashed #334155;">
+            <h3 class="font-bold text-white mb-2">📡 部署指令</h3>
+            <code class="block bg-black p-3 rounded text-green-400 text-xs break-all" style="background: black; color: #4ade80; display: block; padding: 10px; border-radius: 6px; font-family: monospace;">
+                &lt;script src="https://ai-master-dashboard.netlify.app/inject-telemetry.js"&gt;&lt;/script&gt;
+            </code>
         </div>
     </div>
 
     <script>
-        // === 🛡️ 错误捕获系统 ===
-        function logError(msg) {
-            document.getElementById('debug-console').style.display = 'block';
-            document.getElementById('log-content').innerHTML += `<div>${msg}</div>`;
-        }
-        window.onerror = function(msg, url, line) {
-            logError(`JS Error: ${msg} (Line ${line})`);
+        // === 配置区 ===
+        const CONFIG = {
+            url: 'https://sfxpbtqxtshtywbzahlo.supabase.co',
+            key: 'sb_publishable_mMtaZpZiaW9FGK3XMkelug_piElFnC8',
+            password: 'admin'
         };
-        // =======================
 
-        // ✅ 核心配置
-        const SUPABASE_URL = 'https://sfxpbtqxtshtywbzahlo.supabase.co'; 
-        const SUPABASE_KEY = 'sb_publishable_mMtaZpZiaW9FGK3XMkelug_piElFnC8'; 
-        const MY_PASSWORD = 'admin'; 
+        // === 逻辑控制 ===
+        async function tryLogin() {
+            const input = document.getElementById('password-input');
+            const btn = document.getElementById('login-btn');
+            const msg = document.getElementById('login-msg');
+            
+            msg.style.display = 'none';
+            btn.innerText = '连接中...';
 
-        // 检查脚本是否加载
-        if (typeof Vue === 'undefined') logError("严重错误：Vue.js 加载失败，您的网络无法连接 Staticfile CDN。");
-        if (typeof supabase === 'undefined') logError("警告：Supabase 库未加载，您的网络无法连接 Eleme CDN。");
-
-        const { createApp } = Vue || {}; 
-        let sbClient = null;
-
-        // 初始化客户端
-        if (window.supabase) {
-            try {
-                sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-            } catch (e) {
-                logError("Supabase 初始化失败: " + e.message);
+            if (input.value === CONFIG.password) {
+                // 切换视图
+                document.getElementById('login-view').classList.add('hidden');
+                document.getElementById('dashboard-view').classList.remove('hidden');
+                // 开始拉取数据
+                await fetchData();
+            } else {
+                msg.innerText = '密钥错误';
+                msg.style.display = 'block';
+                btn.innerText = '验证身份';
             }
         }
 
-        if (createApp) {
-            createApp({
-                data() { return { authorized: false, password: '', loading: false, isChecking: false, errorMsg: '', rawData: [] } },
-                computed: {
-                    totalViews() { return this.rawData.length; },
-                    siteStats() {
-                        const stats = {};
-                        this.rawData.forEach(r => {
-                            const name = r.site_name || 'Unknown';
-                            if (!stats[name]) stats[name] = { count: 0, lastActive: null };
-                            stats[name].count++;
-                            const t = new Date(r.created_at);
-                            if (!stats[name].lastActive || t > stats[name].lastActive) stats[name].lastActive = t;
-                        });
-                        return Object.fromEntries(Object.entries(stats).sort(([,a],[,b]) => b.count - a.count));
+        async function fetchData() {
+            const loading = document.getElementById('loading-text');
+            const grid = document.getElementById('stats-grid');
+            const totalEl = document.getElementById('total-views');
+
+            try {
+                // 原生 fetch 请求，不依赖 supabase-js 库
+                const response = await fetch(`${CONFIG.url}/rest/v1/page_views?select=*&order=created_at.desc&limit=5000`, {
+                    method: 'GET',
+                    headers: {
+                        'apikey': CONFIG.key,
+                        'Authorization': `Bearer ${CONFIG.key}`,
+                        'Content-Type': 'application/json'
                     }
-                },
-                methods: {
-                    async login() { 
-                        this.isChecking = true;
-                        if (!sbClient) { 
-                            alert('无法连接数据库，基础库加载失败'); 
-                            logError("点击登录时 Supabase 对象不存在");
-                            this.isChecking = false;
-                            return; 
-                        }
-                        
-                        if (this.password === MY_PASSWORD) { 
-                            // 尝试先请求一次，确保网络通畅
-                            const { data, error } = await sbClient.from('page_views').select('count', { count: 'exact', head: true });
-                            if (error) {
-                                logError("数据库连接测试失败: " + error.message);
-                                // 这里增加一种可能：API本身被墙
-                                if(error.message.includes('Failed to fetch')) {
-                                     alert("严重网络错误：Supabase API 被您的网络拦截。请开启 VPN。");
-                                } else {
-                                     alert("连接失败: " + error.message);
-                                }
-                                this.isChecking = false;
-                            } else {
-                                this.authorized = true; 
-                                this.fetchData(); 
-                            }
-                        } else { 
-                            alert('密码错误'); 
-                            this.isChecking = false;
-                        } 
-                    },
-                    async fetchData() {
-                        this.loading = true;
-                        const { data, error } = await sbClient.from('page_views').select('*').order('created_at', { ascending: false }).limit(5000);
-                        if(error) { 
-                            this.errorMsg = "数据读取失败: " + error.message;
-                            logError(this.errorMsg);
-                        }
-                        this.rawData = data || [];
-                        this.loading = false;
-                    },
-                    getPercentage(c) { return this.totalViews ? ((c/this.totalViews)*100).toFixed(1) : 0; },
-                    formatTime(d) { return d ? new Date(d).toLocaleString() : '-'; }
-                }
-            }).mount('#app')
+                });
+
+                if (!response.ok) throw new Error(`API 错误: ${response.status}`);
+                
+                const rawData = await response.json();
+                
+                // 处理数据
+                loading.classList.add('hidden');
+                totalEl.innerText = rawData.length;
+                renderStats(rawData);
+
+            } catch (err) {
+                loading.innerText = "数据获取失败: " + err.message;
+                loading.style.color = "#f87171";
+            }
+        }
+
+        function renderStats(data) {
+            const stats = {};
+            // 数据聚合逻辑
+            data.forEach(r => {
+                const name = r.site_name || 'Unknown';
+                if (!stats[name]) stats[name] = { count: 0, lastActive: null };
+                stats[name].count++;
+                const t = new Date(r.created_at);
+                if (!stats[name].lastActive || t > stats[name].lastActive) stats[name].lastActive = t;
+            });
+
+            // 排序
+            const sorted = Object.entries(stats).sort(([,a],[,b]) => b.count - a.count);
+            const total = data.length || 1;
+            const grid = document.getElementById('stats-grid');
+            
+            let html = '';
+            sorted.forEach(([name, val]) => {
+                const percent = ((val.count / total) * 100).toFixed(1);
+                const timeStr = val.lastActive ? val.lastActive.toLocaleString() : '-';
+                
+                html += `
+                <div class="glass p-6">
+                    <h3 class="font-bold text-xl text-white mb-2" style="font-size: 1.25rem; font-weight: 700; color: white; margin-bottom: 0.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${name}</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end;">
+                        <div>
+                            <div class="text-xs text-slate-400" style="font-size: 0.75rem; color: #94a3b8;">使用次数</div>
+                            <div class="text-2xl font-mono text-white" style="font-size: 1.5rem; font-family: monospace; color: white;">${val.count}</div>
+                        </div>
+                        <div class="text-right" style="text-align: right;">
+                            <div class="text-xs text-slate-400" style="font-size: 0.75rem; color: #94a3b8;">最后活跃</div>
+                            <div class="text-xs text-cyan-400" style="font-size: 0.75rem; color: #22d3ee;">${timeStr}</div>
+                        </div>
+                    </div>
+                    <div class="bar-container">
+                        <div class="bar-fill" style="width: ${percent}%"></div>
+                    </div>
+                </div>
+                `;
+            });
+            
+            grid.innerHTML = html;
         }
     </script>
 </body>
