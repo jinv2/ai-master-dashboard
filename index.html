@@ -5,21 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>天算AI · 商业情报中枢</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <style>
         body { background-color: #0f172a; color: #e2e8f0; font-family: sans-serif; }
         .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        /* 加一个加载中的遮罩 */
+        [v-cloak] { display: none; }
     </style>
 </head>
 <body>
-    <div id="app" class="min-h-screen p-6">
+    <div id="app" class="min-h-screen p-6" v-cloak>
         <div v-if="!authorized" class="flex items-center justify-center h-screen">
             <div class="glass p-8 rounded-xl max-w-md w-full text-center">
                 <h1 class="text-2xl font-bold mb-4 text-cyan-400">SKYCALC DATA CORE</h1>
                 <p class="text-xs text-slate-500 mb-4">身份验证系统</p>
                 <input type="password" v-model="password" @keyup.enter="login" placeholder="输入访问密钥" class="w-full p-3 rounded bg-slate-800 border border-slate-600 mb-4 text-white text-center">
                 <button @click="login" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-bold py-3 rounded">验证身份</button>
+                <p id="error-msg" class="text-red-500 text-xs mt-4 hidden">系统错误：脚本未能加载，请按 F12 查看控制台</p>
             </div>
         </div>
 
@@ -55,7 +59,7 @@
 
             <div class="mt-12 p-6 bg-slate-900 rounded-xl border border-dashed border-slate-700">
                 <h3 class="font-bold text-white mb-2">📡 部署指令</h3>
-                <p class="text-sm text-slate-400 mb-2">在任何子项目的 index.html 中引入此脚本即可（一次引入，永久自动更新监控逻辑）：</p>
+                <p class="text-sm text-slate-400 mb-2">在任何子项目的 index.html 中引入此脚本即可：</p>
                 <code class="block bg-black p-3 rounded text-green-400 text-xs break-all">
                     &lt;script src="https://ai-master-dashboard.netlify.app/inject-telemetry.js"&gt;&lt;/script&gt;
                 </code>
@@ -64,15 +68,26 @@
     </div>
 
     <script>
-        // ✅ 核心配置 (已填入你的 Key)
+        setTimeout(function(){
+            if (typeof Vue === 'undefined' || typeof window.supabase === 'undefined') {
+                document.getElementById('error-msg').style.display = 'block';
+                document.getElementById('error-msg').innerText = "检测到网络问题：核心脚本加载超时，请检查网络或挂梯子。";
+            }
+        }, 3000);
+    </script>
+
+    <script>
+        // ✅ 核心配置
         const SUPABASE_URL = 'https://sfxpbtqxtshtywbzahlo.supabase.co'; 
         const SUPABASE_KEY = 'sb_publishable_mMtaZpZiaW9FGK3XMkelug_piElFnC8'; 
-        
-        // 🔑 你的登录密码 (可自行修改)
         const MY_PASSWORD = 'admin'; 
 
         const { createApp } = Vue
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // 防止 supabase 加载失败导致报错
+        let supabase = null;
+        if (window.supabase) {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        }
 
         createApp({
             data() { return { authorized: false, password: '', loading: false, rawData: [] } },
@@ -91,11 +106,19 @@
                 }
             },
             methods: {
-                login() { if (this.password === MY_PASSWORD) { this.authorized = true; this.fetchData(); } else alert('密码错误'); },
+                login() { 
+                    if (!supabase) { alert('Supabase 连接失败，请检查网络'); return; }
+                    if (this.password === MY_PASSWORD) { 
+                        this.authorized = true; 
+                        this.fetchData(); 
+                    } else { 
+                        alert('密码错误'); 
+                    } 
+                },
                 async fetchData() {
                     this.loading = true;
                     const { data, error } = await supabase.from('page_views').select('*').order('created_at', { ascending: false }).limit(5000);
-                    if(error) { console.error(error); alert("连接 Supabase 失败，请按 F12 查看控制台错误"); }
+                    if(error) { console.error(error); alert("连接 Supabase 失败: " + error.message); }
                     this.rawData = data || [];
                     this.loading = false;
                 },
